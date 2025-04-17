@@ -1,0 +1,149 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService") -- Add RunService for blinking
+
+-- Create GUI elements
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local ToggleButton = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")
+local CloseButton = Instance.new("TextButton")
+
+-- Configure GUI appearance
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.Position = UDim2.new(0.8, 0, 0.5, -50)
+MainFrame.Size = UDim2.new(0, 150, 0, 100)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+-- Add Close Button
+CloseButton.Name = "CloseButton"
+CloseButton.Parent = MainFrame
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.Position = UDim2.new(1, -25, 0, 5)
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 14.000
+
+-- Add corner radius to close button
+local CloseButtonCorner = Instance.new("UICorner")
+CloseButtonCorner.Parent = CloseButton
+CloseButtonCorner.CornerRadius = UDim.new(0, 5)
+
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = MainFrame
+ToggleButton.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.2, 0)
+ToggleButton.Size = UDim2.new(0.8, 0, 0.6, 0)
+ToggleButton.Font = Enum.Font.GothamSemibold
+ToggleButton.Text = "Place Circle"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16.000
+
+UICorner.Parent = MainFrame
+UICorner.CornerRadius = UDim.new(0, 10)
+
+-- Variables
+local isPlacingEnabled = false
+local currentCircle = nil
+local blinkConnection = nil
+
+-- Function to create blinking circle
+local function createCircle(position, lookVector)
+    local circleParts = {}
+    
+    -- Create circle
+    local circle = Instance.new("Part")
+    circle.Name = "BlinkingCircle"
+    circle.Anchored = true
+    circle.CanCollide = false
+    circle.Material = Enum.Material.Neon
+    circle.BrickColor = BrickColor.new("Lime green")
+    circle.Shape = Enum.PartType.Ball -- Make it a sphere
+    circle.Size = Vector3.new(0.8, 0.8, 0.8) -- Reduced size from 2,2,2 to 0.8,0.8,0.8
+    
+    -- Position the circle in front of the block
+    local circleOffset = lookVector * 3 -- Place it 3 studs in front
+    circle.Position = position + circleOffset
+    circle.Parent = workspace
+    
+    table.insert(circleParts, circle)
+    
+    -- Setup blinking
+    local isVisible = true
+    blinkConnection = RunService.Heartbeat:Connect(function()
+        if not circle or not circle.Parent then
+            if blinkConnection then
+                blinkConnection:Disconnect()
+            end
+            return
+        end
+        
+        -- Blink every 0.5 seconds
+        local time = tick()
+        isVisible = math.floor(time * 2) % 2 == 0
+        circle.Transparency = isVisible and 0 or 1
+    end)
+    
+    return circleParts
+end
+
+-- Function to remove existing circle
+local function removeExistingCircle()
+    if currentCircle then
+        for _, part in ipairs(currentCircle) do
+            part:Destroy()
+        end
+        currentCircle = nil
+    end
+    if blinkConnection then
+        blinkConnection:Disconnect()
+        blinkConnection = nil
+    end
+end
+
+-- Handle button click
+ToggleButton.MouseButton1Click:Connect(function()
+    isPlacingEnabled = not isPlacingEnabled
+    ToggleButton.BackgroundColor3 = isPlacingEnabled and 
+        Color3.fromRGB(0, 170, 127) or 
+        Color3.fromRGB(65, 65, 65)
+    ToggleButton.Text = isPlacingEnabled and "Click Block" or "Place Circle"
+    
+    if not isPlacingEnabled then
+        removeExistingCircle()
+    end
+end)
+
+-- Handle close button click
+CloseButton.MouseButton1Click:Connect(function()
+    removeExistingCircle() -- Remove any existing circle
+    ScreenGui:Destroy() -- Remove the GUI
+    script:Destroy() -- Remove the script completely
+end)
+
+-- Handle block selection
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and isPlacingEnabled and input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mouse = Players.LocalPlayer:GetMouse()
+        local target = mouse.Target
+        
+        if target and target:IsA("BasePart") then
+            removeExistingCircle()
+            
+            -- Calculate position and direction
+            local position = target.Position + Vector3.new(0, target.Size.Y/2 + 0.5, 0)
+            local lookVector = target.CFrame.LookVector
+            
+            -- Create new circle
+            currentCircle = createCircle(position, lookVector)
+        end
+    end
+end) 
